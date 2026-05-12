@@ -1,0 +1,4 @@
+dataset,n_mde_feats,spearman_all_mean,spearman_all_std,spearman_mde_mean,spearman_mde_std,kendall_all_mean,kendall_all_std,mde_rank_std_mean
+NSL-KDD,7,0.95,0.015,0.257,0.265,0.853,0.014,4.24
+CICIDS-2017,12,0.927,0.022,0.69,0.2,0.814,0.022,8.18
+UNSW-NB15,11,0.8,0.052,0.413,0.353,0.649,0.052,6.98

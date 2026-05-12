@@ -1,0 +1,7 @@
+holdout_families,model,ablation,n_train,n_test,n_feat,f1,auc,acc,prec,rec,dr_attack,far_benign
+"['Infiltration', 'Bot']",LightGBM,conventional,226703,182336,78,0.9984,0.7553,0.9985,0.9983,0.9985,0.0,0.0006
+"['Infiltration', 'Bot']",RandomForest,conventional,226703,182336,78,0.9981,0.4307,0.9979,0.9983,0.9979,0.0,0.0013
+"['Infiltration', 'Bot']",LightGBM,entropy_only,226703,182336,12,0.9715,0.5547,0.9462,0.9982,0.9462,0.0063,0.053
+"['Infiltration', 'Bot']",RandomForest,entropy_only,226703,182336,12,0.9673,0.3825,0.9382,0.9982,0.9382,0.0063,0.061
+"['Infiltration', 'Bot']",LightGBM,combined,226703,182336,90,0.9984,0.7494,0.9985,0.9983,0.9985,0.0,0.0006
+"['Infiltration', 'Bot']",RandomForest,combined,226703,182336,90,0.9981,0.6829,0.9979,0.9983,0.9979,0.0,0.0012

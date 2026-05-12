@@ -1,0 +1,34 @@
+# Datasets (large files, not tracked)
+datasets/
+
+# CatBoost training artifacts
+catboost_info/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Paper source files (LaTeX, PDF, bibliography, figures)
+figs/
+main.tex
+main.pdf
+references.bib
+rvmodeconfigs.tex
+rvmomdetable.tex
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+
+# Generated experiment log/table files (non-CSV)
+results/tables/*.txt
+results/tables/*.tex
