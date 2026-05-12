@@ -16,6 +16,7 @@ PYTHON = sys.executable
 STAGES = [
     ("Ablation (5-fold CV, 4 datasets)",                ROOT / "pipeline/experiments/run_ablation.py"),
     ("Temporal generalization (CICIDS-2017)",            ROOT / "pipeline/experiments/run_timesplit.py"),
+    ("Pseudo-live temporal replay (CICIDS-2017)",        ROOT / "pipeline/experiments/run_temporal_replay.py"),
     ("Classifier comparison (LGB/RF/XGB/CatBoost/MLP/TabNet/FTT)", ROOT / "pipeline/experiments/run_baselines.py"),
     ("Unseen attack families",                           ROOT / "pipeline/experiments/run_unseen.py"),
     ("Per-class detection rates",                        ROOT / "pipeline/experiments/run_perclass.py"),

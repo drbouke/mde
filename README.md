@@ -19,6 +19,7 @@ Reproducible code for the paper: *Multi-Level Distributional Entropy for Explain
 │   ├── experiments/
 │   │   ├── run_ablation.py     # Main ablation: 4 datasets × 3 conditions × 2 models
 │   │   ├── run_timesplit.py    # CICIDS-2017 temporal split (Mon–Thu → Friday)
+│   │   ├── run_temporal_replay.py  # Pseudo-live chronological replay evaluation
 │   │   ├── run_baselines.py    # XGBoost + MLP baseline comparison
 │   │   ├── run_unseen.py       # Unseen attack family evaluation
 │   │   └── run_perclass.py     # Per-category detection rates
@@ -85,6 +86,9 @@ python pipeline/experiments/run_ablation.py
 
 # Temporal generalization (CICIDS-2017 Mon–Thu → Friday, debiased)
 python pipeline/experiments/run_timesplit.py
+
+# Pseudo-live temporal replay (chronological windows, fixed vs Youden threshold)
+python pipeline/experiments/run_temporal_replay.py
 
 # XGBoost + MLP baselines
 python pipeline/experiments/run_baselines.py

@@ -1,0 +1,4 @@
+ablation,n_train,n_test,n_windows,thr_fixed,thr_youden,fixed_dr,fixed_far,fixed_mcc,fixed_f1,fixed_auc,fixed_prauc,youden_dr,youden_far,youden_mcc,youden_f1,youden_auc,youden_prauc
+conventional,150000,703245,20,0.5,0.7163,0.081,0.0003,0.2208,0.5076,0.8423,0.7789,0.0808,0.0003,0.2207,0.5075,0.8423,0.7789
+entropy_only,150000,703245,20,0.5,0.504,0.1254,0.0218,0.2076,0.5344,0.7317,0.6277,0.1249,0.0218,0.2069,0.534,0.7317,0.6277
+combined,150000,703245,20,0.5,0.714,0.0808,0.0003,0.2206,0.5075,0.8705,0.8046,0.0808,0.0003,0.2207,0.5075,0.8705,0.8046
