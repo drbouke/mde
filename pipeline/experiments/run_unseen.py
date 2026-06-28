@@ -66,8 +66,10 @@ print(f"Test:  {len(df_test_raw):,} flows  "
 
 df_tr = clean(df_train_raw)
 df_te = clean(df_test_raw)
-mde_tr = compute_mde(clean_for_mde(df_train_raw), "CICIDS-2017")
-mde_te = compute_mde(clean_for_mde(df_test_raw), "CICIDS-2017")
+mde_input_tr = clean_for_mde(df_train_raw)
+mde_input_te = clean_for_mde(df_test_raw)
+mde_tr = compute_mde(mde_input_tr, "CICIDS-2017")
+mde_te = compute_mde(mde_input_te, "CICIDS-2017", fit_df=mde_input_tr)
 fsets_tr = build_feature_sets(df_tr, mde_tr)
 fsets_te = build_feature_sets(df_te, mde_te)
 y_tr = fsets_tr["conventional"][1]

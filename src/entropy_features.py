@@ -74,7 +74,7 @@ def flag_entropy(flag_df):
 
 # ── Dataset-aware MDE computation ────────────────────────────────────────────
 
-def _mde_cicids(df, suffix=""):
+def _mde_cicids(df, fit_df=None):
     """MDE for CICIDS-2017 / CICIDS-2018 flow feature schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -121,7 +121,7 @@ def _mde_cicids(df, suffix=""):
     pkt_frac = tot_fwd / (tot_fwd + tot_bwd)
     F["dir_entropy_pkts"] = binary_shannon(pkt_frac)
 
-    # Byte-rate log-entropy
+    # Log-scale behavioral feature (not an information-theoretic entropy quantity)
     F["log_byte_rate"] = np.log1p(np.abs(flow_bytes))
 
     # L3 – Flag Shannon entropy
@@ -144,17 +144,18 @@ def _mde_cicids(df, suffix=""):
     else:
         F["flag_entropy"] = 0.0
 
-    # Composite MDE score (normalized sum)
+    # Composite MDE score: min-max normalized using training-set statistics.
+    # fit_df provides training-corpus bounds; None falls back to self (e.g. full-dataset CV).
     ent_cols = ["ade_fwd_pkt_gauss", "ade_bwd_pkt_gauss", "ade_fwd_iat_gauss",
                 "ade_bwd_iat_gauss", "jsd_pkt_len", "jsd_iat", "flag_entropy"]
-    F["mde_score"] = F[ent_cols].apply(
-        lambda x: (x - x.min()) / (x.max() - x.min() + EPS)
-    ).mean(axis=1)
+    _fit = _mde_cicids(fit_df) if fit_df is not None else F
+    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
 
     return F
 
 
-def _mde_unsw(df):
+def _mde_unsw(df, fit_df=None):
     """MDE for UNSW-NB15 schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -189,7 +190,7 @@ def _mde_unsw(df):
     F["dir_entropy_bytes"] = binary_shannon(byte_frac)
     F["dir_entropy_pkts"]  = binary_shannon(pkt_frac)
 
-    # Load log-entropy
+    # Log-scale behavioral features (not information-theoretic entropy quantities)
     F["log_sload"] = np.log1p(np.abs(sload))
     F["log_dload"] = np.log1p(np.abs(dload))
 
@@ -201,14 +202,14 @@ def _mde_unsw(df):
 
     ent_cols = ["ade_src_iat", "ade_dst_iat", "jsd_pkt_sz",
                 "jsd_iat", "dir_entropy_bytes", "dir_entropy_pkts"]
-    F["mde_score"] = F[ent_cols].apply(
-        lambda x: (x - x.min()) / (x.max() - x.min() + EPS)
-    ).mean(axis=1)
+    _fit = _mde_unsw(fit_df) if fit_df is not None else F
+    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
 
     return F
 
 
-def _mde_kdd(df):
+def _mde_kdd(df, fit_df=None):
     """MDE for NSL-KDD schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -240,7 +241,7 @@ def _mde_kdd(df):
     srv_frac = srv_frac.clip(EPS, 1 - EPS)
     F["srv_diversity_entropy"] = binary_shannon(srv_frac)
 
-    # L3 – log-rate asymmetry
+    # Log-scale behavioral features (not information-theoretic entropy quantities)
     F["log_src_bytes"] = np.log1p(src_bytes)
     F["log_dst_bytes"] = np.log1p(dst_bytes)
     F["byte_asym_jsd"] = jsd_gaussian(
@@ -249,9 +250,9 @@ def _mde_kdd(df):
     )
 
     ent_cols = ["conn_state_entropy", "dir_entropy_bytes", "srv_diversity_entropy"]
-    F["mde_score"] = F[ent_cols].apply(
-        lambda x: (x - x.min()) / (x.max() - x.min() + EPS)
-    ).mean(axis=1)
+    _fit = _mde_kdd(fit_df) if fit_df is not None else F
+    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
 
     return F
 
@@ -266,9 +267,17 @@ DATASET_MDE = {
 }
 
 
-def compute_mde(df, dataset_name):
+def compute_mde(df, dataset_name, fit_df=None):
+    """Compute MDE features for df.
+
+    fit_df: training-set DataFrame used to derive mde_score normalization bounds.
+            Pass the training corpus for temporal/hold-out experiments so test-set
+            entropy values are normalized against training statistics. When None,
+            normalization uses df itself (appropriate for CV with tree-based models,
+            which are invariant to monotonic feature rescaling).
+    """
     fn = DATASET_MDE[dataset_name]
-    mde = fn(df)
+    mde = fn(df, fit_df=fit_df)
     mde = mde.replace([np.inf, -np.inf], np.nan).fillna(0)
     return mde
 
