@@ -1,9 +1,8 @@
 """
 Multi-level Distributional Entropy (MDE) feature engineering.
 
-Novel contribution: computes entropy analytically from pre-aggregated flow
-statistics, eliminating the need for raw packet sequences. Three entropy
-levels are computed per flow:
+Computes entropy analytically from pre-aggregated flow statistics, without raw
+packet sequences. Three entropy levels are computed per flow:
   L1 - Analytical Differential Entropy (ADE): intra-flow Gaussian entropy
        from mean/std of packet lengths and inter-arrival times.
   L2 - Cross-directional Jensen-Shannon Divergence (JSD): captures the

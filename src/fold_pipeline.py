@@ -1,5 +1,5 @@
 """
-Fold-local preprocessing pipeline for scientifically correct cross-validation.
+Fold-local preprocessing pipeline for cross-validation.
 
 Imputation (median) and clipping (99.9th percentile) are fitted exclusively
 on each training fold and applied to the corresponding test fold, preventing

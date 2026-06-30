@@ -1,6 +1,11 @@
 # Multi-Level Distributional Entropy (MDE) for Explainable Network Intrusion Detection
 
-Reproducible code for the paper: *Multi-Level Distributional Entropy for Explainable Network Intrusion Detection* (Bouke, 2026).
+Reproducible code for the paper **Multi-Level Distributional Entropy for Explainable Network Intrusion Detection** (Bouke et al., 2026).
+
+[![arXiv](https://img.shields.io/badge/arXiv-2606.29797-b31b1b.svg)](https://arxiv.org/abs/2606.29797)
+[![DOI](https://img.shields.io/badge/DOI-10.48550%2FarXiv.2606.29797-blue.svg)](https://doi.org/10.48550/arXiv.2606.29797)
+
+**Paper:** [arXiv:2606.29797](https://arxiv.org/abs/2606.29797) | **DOI:** [10.48550/arXiv.2606.29797](https://doi.org/10.48550/arXiv.2606.29797)
 
 ---
 
@@ -124,10 +129,15 @@ All outputs are written to `results/figures/` (PDFs) and `results/tables/` (CSVs
 
 ## Citation
 
-```
-@article{bouke2026mde,
-  author  = {Bouke, Mohamed Aly},
-  title   = {Multi-Level Distributional Entropy for Explainable Network Intrusion Detection},
-  year    = {2026},
+```bibtex
+@misc{bouke2026multileveldistributionalentropyexplainable,
+      title={Multi-Level Distributional Entropy for Explainable Network Intrusion Detection},
+      author={Mohamed Aly Bouke and Md Shohel Sayeed and Swee-Huay Heng and Azizol Abdullah and Mohamed Othman},
+      year={2026},
+      eprint={2606.29797},
+      archivePrefix={arXiv},
+      primaryClass={cs.CR},
+      doi={10.48550/arXiv.2606.29797},
+      url={https://arxiv.org/abs/2606.29797},
 }
 ```
