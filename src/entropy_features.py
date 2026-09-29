@@ -9,14 +9,19 @@ packet sequences. Three entropy levels are computed per flow:
        statistical asymmetry between forward and backward traffic, a signal
        known to differ between benign bidirectional sessions and attacks
        (e.g., DDoS, scanning) dominated by unidirectional bursts.
-  L3 - Flag-pattern Shannon Entropy: uncertainty across TCP control flags,
-       distinguishing stealthy flag-manipulation attacks from normal traffic.
+  L3 - Flag-incidence Shannon entropy: diversity of TCP control-flag incidences
+       within a flow.
+Each schema also carries a few log-scaled volume descriptors (NON_ENTROPY_DESCRIPTORS),
+which are not information-theoretic quantities.
 """
 
 import numpy as np
 import pandas as pd
 
+from jsd_gauss import jsd_gaussian, jsd_gaussian_quad  # noqa: F401
+
 EPS = 1e-9
+NON_ENTROPY_DESCRIPTORS = ("log_byte_rate", "log_sload", "log_dload", "log_src_bytes", "log_dst_bytes")
 
 
 # ── Core entropy primitives ──────────────────────────────────────────────────
@@ -46,18 +51,26 @@ def kl_gaussian(mu1, s1, mu2, s2):
     return np.log(s2 / s1) + (s1 ** 2 + (mu1 - mu2) ** 2) / (2 * s2 ** 2) - 0.5
 
 
-def jsd_gaussian(mu1, s1, mu2, s2):
+
+
+def jsd_gaussian_moment_matched(mu1, s1, mu2, s2):
     """
-    Jensen-Shannon divergence between two univariate Gaussians.
-    Approximated via the moment-matched mixture mean:
-      M = 0.5*N1 + 0.5*N2  =>  mu_M = mean(mu1,mu2),
-      sigma_M^2 = 0.5*(s1^2 + s2^2) + 0.25*(mu1-mu2)^2
-    JSD = 0.5*KL(N1||M) + 0.5*KL(N2||M)  (bounded in [0, ln2])
+    Moment-matched surrogate: KL terms against a single Gaussian fitted to the mixture's mean
+    and variance. It is not a Jensen-Shannon divergence and is not bounded by ln 2; kept
+    only for comparison with jsd_gaussian (see pipeline/evaluation/validate_jsd.py).
     """
     mu_m = 0.5 * (mu1 + mu2)
     s_m = np.sqrt(np.maximum(0.5 * (s1 ** 2 + s2 ** 2) + 0.25 * (mu1 - mu2) ** 2, EPS))
-    jsd = 0.5 * kl_gaussian(mu1, s1, mu_m, s_m) + 0.5 * kl_gaussian(mu2, s2, mu_m, s_m)
-    return np.clip(jsd, 0, np.log(2))
+    return 0.5 * kl_gaussian(mu1, s1, mu_m, s_m) + 0.5 * kl_gaussian(mu2, s2, mu_m, s_m)
+
+
+def _score_bounds(F, ent_cols, fit_df, builder, bounds):
+    """Min and max of the entropy columns used to scale the composite score: the given
+    bounds, else those of the fitted frame, else those of F itself."""
+    if bounds is not None:
+        return bounds
+    src = builder(fit_df)[ent_cols] if fit_df is not None else F[ent_cols]
+    return src.min(), src.max()
 
 
 def flag_entropy(flag_df):
@@ -73,7 +86,7 @@ def flag_entropy(flag_df):
 
 # ── Dataset-aware MDE computation ────────────────────────────────────────────
 
-def _mde_cicids(df, fit_df=None):
+def _mde_cicids(df, fit_df=None, bounds=None):
     """MDE for CICIDS-2017 / CICIDS-2018 flow feature schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -147,14 +160,14 @@ def _mde_cicids(df, fit_df=None):
     # fit_df provides training-corpus bounds; None falls back to self (e.g. full-dataset CV).
     ent_cols = ["ade_fwd_pkt_gauss", "ade_bwd_pkt_gauss", "ade_fwd_iat_gauss",
                 "ade_bwd_iat_gauss", "jsd_pkt_len", "jsd_iat", "flag_entropy"]
-    _fit = _mde_cicids(fit_df) if fit_df is not None else F
-    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    lo, hi = _score_bounds(F, ent_cols, fit_df, _mde_cicids, bounds)
     F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
+    F.attrs["bounds"] = (lo, hi)
 
     return F
 
 
-def _mde_unsw(df, fit_df=None):
+def _mde_unsw(df, fit_df=None, bounds=None):
     """MDE for UNSW-NB15 schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -201,14 +214,14 @@ def _mde_unsw(df, fit_df=None):
 
     ent_cols = ["ade_src_iat", "ade_dst_iat", "jsd_pkt_sz",
                 "jsd_iat", "dir_entropy_bytes", "dir_entropy_pkts"]
-    _fit = _mde_unsw(fit_df) if fit_df is not None else F
-    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    lo, hi = _score_bounds(F, ent_cols, fit_df, _mde_unsw, bounds)
     F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
+    F.attrs["bounds"] = (lo, hi)
 
     return F
 
 
-def _mde_kdd(df, fit_df=None):
+def _mde_kdd(df, fit_df=None, bounds=None):
     """MDE for NSL-KDD schema."""
     F = pd.DataFrame(index=df.index)
 
@@ -249,9 +262,9 @@ def _mde_kdd(df, fit_df=None):
     )
 
     ent_cols = ["conn_state_entropy", "dir_entropy_bytes", "srv_diversity_entropy"]
-    _fit = _mde_kdd(fit_df) if fit_df is not None else F
-    lo, hi = _fit[ent_cols].min(), _fit[ent_cols].max()
+    lo, hi = _score_bounds(F, ent_cols, fit_df, _mde_kdd, bounds)
     F["mde_score"] = ((F[ent_cols] - lo) / (hi - lo + EPS)).mean(axis=1)
+    F.attrs["bounds"] = (lo, hi)
 
     return F
 
@@ -266,18 +279,19 @@ DATASET_MDE = {
 }
 
 
-def compute_mde(df, dataset_name, fit_df=None):
+def compute_mde(df, dataset_name, fit_df=None, bounds=None):
     """Compute MDE features for df.
 
-    fit_df: training-set DataFrame used to derive mde_score normalization bounds.
-            Pass the training corpus for temporal/hold-out experiments so test-set
-            entropy values are normalized against training statistics. When None,
-            normalization uses df itself (appropriate for CV with tree-based models,
-            which are invariant to monotonic feature rescaling).
+    The composite mde_score scales each entropy column by min-max bounds. Pass `bounds`
+    (as stored in the result's .attrs["bounds"] from a training portion) or `fit_df`
+    (the training frame) so that a test portion is scaled with training statistics;
+    with neither, the bounds come from df itself.
     """
     fn = DATASET_MDE[dataset_name]
-    mde = fn(df, fit_df=fit_df)
+    mde = fn(df, fit_df=fit_df, bounds=bounds)
+    b = mde.attrs.get("bounds")
     mde = mde.replace([np.inf, -np.inf], np.nan).fillna(0)
+    mde.attrs["bounds"] = b
     return mde
 
 

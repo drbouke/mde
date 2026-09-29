@@ -9,13 +9,9 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Paper source files (LaTeX, PDF, bibliography, figures)
-figs/
-main.tex
-main.pdf
-references.bib
-rvmodeconfigs.tex
-rvmomdetable.tex
+# Manuscript and submission material
+paper/
+Submissions/
 
 # LaTeX build artifacts
 *.aux
@@ -32,3 +28,17 @@ rvmomdetable.tex
 # Generated experiment log/table files (non-CSV)
 results/tables/*.txt
 results/tables/*.tex
+
+# Pre-correction backups and generated LaTeX row blocks
+*.orig
+*.bak
+results/tables/latex_rows/
+results/tables/_ckpt_*.csv
+
+# Personal material and packaging artifacts
+My_MMU_PostDoc_Proposal/
+pilot_explanation_drift/
+*.zip
+# Manuscript-side helpers that operate on the (untracked) paper source
+pipeline/evaluation/paste_tables.py
+pipeline/evaluation/numbers_audit.py

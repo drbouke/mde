@@ -24,13 +24,14 @@ import lightgbm as lgb
 from config import FIGS, TABLES, RANDOM_STATE
 from preprocess import load_dataset, clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
-from fold_pipeline import PercentileClipper
+from fold_pipeline import PercentileClipper, MDEFeatures
 
 FIGS.mkdir(parents=True, exist_ok=True)
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
 DATASETS    = ["NSL-KDD", "CICIDS-2017", "CICIDS-2018", "UNSW-NB15"]
 CONDITIONS  = ["conventional", "entropy_only", "combined"]
+META = ["binary_label", "multi_label", "label_name"]
 COND_LABELS = {"conventional": "Conventional", "entropy_only": "Entropy-only", "combined": "Combined"}
 COND_COLORS = {"conventional": "#4878d0", "entropy_only": "#ee854a", "combined": "#6acc65"}
 COND_LS     = {"conventional": "-", "entropy_only": "--", "combined": "-."}
@@ -42,15 +43,25 @@ LN2     = np.log(2)
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
-def fold_roc(X, y):
+def _fold_features(X_raw, tr, te, ds_name, cond):
+    """Training and test matrices for one fold; entropy features come from the training
+    portion's statistics."""
+    if cond == "conventional":
+        return X_raw.iloc[tr].to_numpy(dtype=float), X_raw.iloc[te].to_numpy(dtype=float)
+    t = MDEFeatures(ds_name, include_raw=(cond == "combined")).fit(X_raw.iloc[tr])
+    return t.transform(X_raw.iloc[tr]), t.transform(X_raw.iloc[te])
+
+
+def fold_roc(X, y, ds_name, cond):
     base_fpr = np.linspace(0, 1, 201)
     tprs, aucs = [], []
     for tr, te in CV.split(X, y):
-        X_tr, X_te, y_tr, y_te = X[tr], X[te], y[tr], y[te]
+        X_tr, X_te = _fold_features(X, tr, te, ds_name, cond)
+        y_tr, y_te = y[tr], y[te]
         imp = SimpleImputer(strategy="median").fit(X_tr)
         cli = PercentileClipper().fit(imp.transform(X_tr))
         Xtr = cli.transform(imp.transform(X_tr))
@@ -64,10 +75,11 @@ def fold_roc(X, y):
     return base_fpr, mean_tpr, np.mean(aucs)
 
 
-def fold_cm(X, y):
+def fold_cm(X, y, ds_name, cond):
     cm_total = np.zeros((2, 2), dtype=int)
     for tr, te in CV.split(X, y):
-        X_tr, X_te, y_tr, y_te = X[tr], X[te], y[tr], y[te]
+        X_tr, X_te = _fold_features(X, tr, te, ds_name, cond)
+        y_tr, y_te = y[tr], y[te]
         imp = SimpleImputer(strategy="median").fit(X_tr)
         cli = PercentileClipper().fit(imp.transform(X_tr))
         Xtr = cli.transform(imp.transform(X_tr))
@@ -85,8 +97,8 @@ for ds_name in DATASETS:
     print(f"  [{ds_name}]", flush=True)
     raw = load_dataset(ds_name)
     df  = clean(raw)
-    mde = compute_mde(clean_for_mde(raw), ds_name)
-    fsets_all[ds_name] = build_feature_sets(df, mde)
+    X_raw = df.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+    fsets_all[ds_name] = (X_raw, df["binary_label"].values)
 
 # ── ROC curves ───────────────────────────────────────────────────────────────
 print("\nGenerating ROC curves...", flush=True)
@@ -95,9 +107,9 @@ fig.subplots_adjust(wspace=0.32, left=0.05, right=0.98, top=0.88, bottom=0.16)
 for col, ds_name in enumerate(DATASETS):
     ax = axes[col]
     for cond in CONDITIONS:
-        X, y, _ = fsets_all[ds_name][cond]
+        X, y = fsets_all[ds_name]
         print(f"    {ds_name} | {cond}", flush=True)
-        fpr, tpr, roc_auc = fold_roc(X, y)
+        fpr, tpr, roc_auc = fold_roc(X, y, ds_name, cond)
         ax.plot(fpr, tpr, color=COND_COLORS[cond], ls=COND_LS[cond], lw=1.8,
                 label=f"{COND_LABELS[cond]} (AUC={roc_auc:.4f})")
     ax.plot([0, 1], [0, 1], "k:", lw=0.8, alpha=0.5)
@@ -122,9 +134,9 @@ fig2, axes2 = plt.subplots(1, 4, figsize=(15, 3.8))
 fig2.subplots_adjust(wspace=0.42, left=0.05, right=0.98, top=0.85, bottom=0.14)
 for col, ds_name in enumerate(DATASETS):
     ax = axes2[col]
-    X, y, _ = fsets_all[ds_name]["combined"]
+    X, y = fsets_all[ds_name]
     print(f"    {ds_name} | combined", flush=True)
-    cm = fold_cm(X, y)
+    cm = fold_cm(X, y, ds_name, "combined")
     cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
     im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
     ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
@@ -151,7 +163,9 @@ print(f"  Saved: {out_cm}", flush=True)
 print("\nGenerating JSD distribution figure...", flush=True)
 fig3, axes3 = plt.subplots(1, 2, figsize=(7, 3.0))
 for ax, (ds_name, jsd_hint) in zip(axes3, [("CICIDS-2017", "jsd_pkt_len"), ("UNSW-NB15", "jsd_pkt_sz")]):
-    X, y, feat = fsets_all[ds_name]["combined"]
+    X_raw, y = fsets_all[ds_name]
+    t_all = MDEFeatures(ds_name, include_raw=False).fit(X_raw)
+    X, feat = t_all.transform(X_raw), list(t_all.feature_names_out_)
     jsd_col = jsd_hint if jsd_hint in feat else next(
         (f for f in feat if f.startswith("jsd_")), None)
     if jsd_col is None:
@@ -182,7 +196,7 @@ for ax, (ds_name, jsd_hint) in zip(axes3, [("CICIDS-2017", "jsd_pkt_len"), ("UNS
     ax.set_title(ds_name, fontsize=9, fontweight="bold")
     ax.legend(fontsize=7, loc="upper left"); ax.tick_params(labelsize=7)
     ax.set_xlim(-0.01, LN2 * 1.08)
-fig3.suptitle(r"Empirical JSD: attack flows concentrate near $\ln 2 \approx 0.693$ nats",
+fig3.suptitle(r"Empirical JSD between forward and backward Gaussian models (nats)",
               fontsize=9, y=1.01)
 plt.tight_layout()
 out_jsd = FIGS / "jsd_empirical_dist.pdf"

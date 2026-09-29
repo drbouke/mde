@@ -1,14 +1,20 @@
 """
 Tabular classifier comparison on combined MDE features, 5-fold CV, four datasets.
 
-Classifiers:
-  LightGBM, Random Forest, XGBoost, CatBoost        — full dataset
-  MLP, TabNet, FT-Transformer                        — 30K stratified subsample
+Classifiers (all trained on the full training fold under the same fold-local pipeline):
+  LightGBM, Random Forest, XGBoost, CatBoost, MLP, TabNet, FT-Transformer
+
+Usage:
+  python run_baselines.py                                   # everything
+  python run_baselines.py --datasets CICIDS-2017 NSL-KDD --models MLP TabNet FT-Transformer
+      # a subset; its rows replace the matching rows of the existing tables (--suffix writes
+      # separate files instead, merged later with --merge)
+  python run_baselines.py --merge                           # fold *_<suffix>.csv part files into the tables
 
 Outputs:
-  results/tables/baselines_comparison.csv
+  results/tables/baselines_comparison.csv, baselines_comparison_folds.csv
 """
-import sys, warnings, math
+import sys, warnings, math, argparse
 warnings.filterwarnings("ignore")
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -39,12 +45,50 @@ print(f"[device] Using: {DEVICE}", flush=True)
 from config import TABLES, RANDOM_STATE
 from preprocess import load_dataset, clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
-from fold_pipeline import PercentileClipper
+from fold_pipeline import PercentileClipper, MDEFeatures
+from metrics import full_metrics, aggregate, cv_full_metrics
 
 TABLES.mkdir(parents=True, exist_ok=True)
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
-DATASETS = ["NSL-KDD", "CICIDS-2017", "CICIDS-2018", "UNSW-NB15"]
-SUBSAMPLE_N = 30_000  # for deep models
+ALL_DATASETS = ["NSL-KDD", "CICIDS-2017", "CICIDS-2018", "UNSW-NB15"]
+ALL_MODELS = ["LightGBM", "Random Forest", "XGBoost", "CatBoost", "MLP", "TabNet", "FT-Transformer"]
+META = ["binary_label", "multi_label", "label_name"]
+SUBSAMPLE_N = None  # every model trains on the full training fold
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--datasets", nargs="+", default=ALL_DATASETS)
+ap.add_argument("--models", nargs="+", default=ALL_MODELS)
+ap.add_argument("--suffix", default="", help="write baselines_comparison_<suffix>.csv part files")
+ap.add_argument("--merge", action="store_true", help="merge all part files into the main tables and exit")
+ARGS = ap.parse_args()
+DATASETS = ARGS.datasets
+MODELS = set(ARGS.models)
+
+
+def merge_into(main_path, part):
+    """Replace the (dataset, model) rows of the main table with those of `part`, keeping the model order."""
+    if main_path.exists():
+        base = pd.read_csv(main_path)
+        keys = set(zip(part["dataset"], part["model"]))
+        base = base[[(d, m) not in keys for d, m in zip(base["dataset"], base["model"])]]
+        out = pd.concat([base, part], ignore_index=True)
+    else:
+        out = part
+    out["_d"] = out["dataset"].map({d: i for i, d in enumerate(ALL_DATASETS)})
+    out["_m"] = out["model"].map({m: i for i, m in enumerate(ALL_MODELS)})
+    sort_cols = ["_d", "_m"] + (["fold"] if "fold" in out.columns else [])
+    out = out.sort_values(sort_cols).drop(columns=["_d", "_m"])
+    out.to_csv(main_path, index=False)
+
+
+if ARGS.merge:
+    for stem in ["baselines_comparison", "baselines_comparison_folds"]:
+        for part_path in sorted(TABLES.glob(f"{stem}_*.csv")):
+            if stem == "baselines_comparison" and part_path.name.startswith("baselines_comparison_folds"):
+                continue  # the folds table and its part files belong to the other stem
+            merge_into(TABLES / f"{stem}.csv", pd.read_csv(part_path))
+            print("merged", part_path.name, flush=True)
+    sys.exit(0)
 
 
 # ── Metric helpers ───────────────────────────────────────────────────────────
@@ -90,44 +134,46 @@ def metrics_from_scores(s):
 
 # ── Sklearn-compatible pipeline factories ───────────────────────────────────
 
-def _preproc_pipe(clf):
-    return Pipeline([
+def _preproc_pipe(clf, ds_name=None):
+    """Fold-local pipeline: MDE features from the fold's training portion (when ds_name is
+    given), then median imputation, percentile clipping, and the classifier."""
+    return Pipeline(([("mde", MDEFeatures(ds_name, include_raw=True))] if ds_name else []) + [
         ("imputer", SimpleImputer(strategy="median")),
         ("clipper", PercentileClipper()),
         ("clf", clf),
     ])
 
 
-def make_lgb_pipe():
-    return _preproc_pipe(lgb.LGBMClassifier(
+def make_lgb_pipe(ds_name=None):
+    return _preproc_pipe(ds_name=ds_name, clf=lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     ))
 
-def make_rf_pipe():
-    return _preproc_pipe(RandomForestClassifier(
+def make_rf_pipe(ds_name=None):
+    return _preproc_pipe(ds_name=ds_name, clf=RandomForestClassifier(
         n_estimators=200, max_depth=20, min_samples_leaf=5,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE,
     ))
 
-def make_xgb_pipe():
+def make_xgb_pipe(ds_name=None):
     use_gpu = DEVICE.type == "cuda"
-    return _preproc_pipe(xgb.XGBClassifier(
+    return _preproc_pipe(ds_name=ds_name, clf=xgb.XGBClassifier(
         n_estimators=300, learning_rate=0.05, max_depth=6,
-        scale_pos_weight=1, n_jobs=1, random_state=RANDOM_STATE,
+        scale_pos_weight=1, n_jobs=-1, random_state=RANDOM_STATE,
         eval_metric="logloss", verbosity=0,
         device="cuda" if use_gpu else "cpu",
     ))
 
-def make_catboost_pipe():
-    return _preproc_pipe(CatBoostClassifier(
+def make_catboost_pipe(ds_name=None):
+    return _preproc_pipe(ds_name=ds_name, clf=CatBoostClassifier(
         iterations=300, learning_rate=0.05, depth=6,
         auto_class_weights="Balanced", random_seed=RANDOM_STATE, verbose=0,
         task_type="CPU",
     ))
 
-def make_mlp_pipe():
-    return _preproc_pipe(MLPClassifier(
+def make_mlp_pipe(ds_name=None):
+    return _preproc_pipe(ds_name=ds_name, clf=MLPClassifier(
         hidden_layer_sizes=(128, 64), max_iter=300,
         random_state=RANDOM_STATE, early_stopping=True,
     ))
@@ -200,9 +246,12 @@ class FTTransformerClassifier:
 
     def predict_proba(self, X):
         self.model_.to(DEVICE).eval()
+        parts = []
         with torch.no_grad():
-            logits = self.model_(torch.FloatTensor(X).to(DEVICE))
-            probs = torch.softmax(logits, dim=-1).cpu().numpy()
+            for i in range(0, len(X), 4096):
+                logits = self.model_(torch.FloatTensor(X[i:i + 4096]).to(DEVICE))
+                parts.append(torch.softmax(logits, dim=-1).cpu().numpy())
+        probs = np.concatenate(parts, axis=0)
         self.model_.cpu()
         if DEVICE.type == "cuda":
             torch.cuda.empty_cache()
@@ -220,10 +269,40 @@ def _prep(X_tr, X_te):
     return cli.transform(imp.transform(X_tr)), cli.transform(imp.transform(X_te))
 
 
-def manual_cv(make_clf, X, y, cv=CV, subsample_n=None, model_label=""):
-    f1s, precs, recs, drs, fars, accs, mccs, aucs, praucs = ([] for _ in range(9))
+CKPT = TABLES / "_ckpt_baselines.csv"
+
+
+def _ckpt_load(ds_name, model_label):
+    """Completed folds of (dataset, model) from the checkpoint file, keyed by fold number."""
+    if not CKPT.exists():
+        return {}
+    c = pd.read_csv(CKPT)
+    c = c[(c["dataset"] == ds_name) & (c["model"] == model_label)]
+    return {int(r["fold"]): {k: v for k, v in r.items() if k not in ("dataset", "model")} for _, r in c.iterrows()}
+
+
+def _ckpt_save(ds_name, model_label, m):
+    row = pd.DataFrame([{"dataset": ds_name, "model": model_label, **m}])
+    row.to_csv(CKPT, mode="a", header=not CKPT.exists(), index=False)
+
+
+def manual_cv(make_clf, X, y, cv=CV, subsample_n=None, model_label="", ds_name=None):
+    """Manual 5-fold CV with the complete metric suite; with a raw-statistics DataFrame and
+    ds_name, the MDE features are built inside each fold from the training portion. Every finished
+    fold is checkpointed immediately, and folds found in the checkpoint file are reused."""
+    folds = []
+    done = _ckpt_load(ds_name, model_label)
     for fold_i, (tr_idx, te_idx) in enumerate(cv.split(X, y)):
-        X_tr, X_te = X[tr_idx], X[te_idx]
+        if fold_i + 1 in done:
+            m = done[fold_i + 1]
+            folds.append(m)
+            print(f"    fold {fold_i+1}/5  F1={m['f1']:.4f}  DR={m['dr']:.4f}  (from checkpoint)", flush=True)
+            continue
+        if isinstance(X, pd.DataFrame):
+            mde = MDEFeatures(ds_name, include_raw=True).fit(X.iloc[tr_idx])
+            X_tr, X_te = mde.transform(X.iloc[tr_idx]), mde.transform(X.iloc[te_idx])
+        else:
+            X_tr, X_te = X[tr_idx], X[te_idx]
         y_tr, y_te = y[tr_idx], y[te_idx]
         if subsample_n and len(X_tr) > subsample_n:
             sss = StratifiedShuffleSplit(1, train_size=subsample_n, random_state=RANDOM_STATE + fold_i)
@@ -232,28 +311,13 @@ def manual_cv(make_clf, X, y, cv=CV, subsample_n=None, model_label=""):
         Xtr, Xte = _prep(X_tr, X_te)
         clf = make_clf()
         clf.fit(Xtr, y_tr)
-        y_pred = clf.predict(Xte)
-        y_prob = clf.predict_proba(Xte)[:, 1]
-        f1s.append(f1_score(y_te, y_pred, average="weighted", zero_division=0))
-        precs.append(precision_score(y_te, y_pred, average="weighted", zero_division=0))
-        recs.append(recall_score(y_te, y_pred, average="weighted", zero_division=0))
-        drs.append(_dr(y_te, y_pred))
-        fars.append(_far(y_te, y_pred))
-        accs.append((y_te == y_pred).mean())
-        mccs.append(matthews_corrcoef(y_te, y_pred))
-        try:
-            aucs.append(roc_auc_score(y_te, y_prob))
-        except Exception:
-            aucs.append(float("nan"))
-        praucs.append(average_precision_score(y_te, y_prob))
-        print(f"    fold {fold_i+1}/5  F1={f1s[-1]:.4f}  DR={drs[-1]:.4f}", flush=True)
-    return {
-        "f1":     round(np.mean(f1s),   4), "f1_std": round(np.std(f1s),   4),
-        "prec":   round(np.mean(precs), 4), "rec":    round(np.mean(recs),  4),
-        "dr":     round(np.mean(drs),   4), "far":    round(np.mean(fars),  4),
-        "acc":    round(np.mean(accs),  4), "mcc":    round(np.mean(mccs),  4),
-        "auc":    round(np.nanmean(aucs),4),"prauc":  round(np.mean(praucs),4),
-    }
+        m = full_metrics(y_te, clf.predict(Xte), clf.predict_proba(Xte)[:, 1])
+        m["fold"] = fold_i + 1
+        folds.append(m)
+        _ckpt_save(ds_name, model_label, m)
+        print(f"    fold {fold_i+1}/5  F1={m['f1']:.4f}  DR={m['dr']:.4f}", flush=True)
+    fdf = pd.DataFrame(folds); fdf.insert(0, "model", model_label); fdf.insert(0, "dataset", ds_name); fold_rows.append(fdf)
+    return aggregate([{k: v for k, v in f.items() if k != "fold"} for f in folds])
 
 
 def make_tabnet_factory(n_features):
@@ -313,55 +377,70 @@ CLASSIFIERS = [
 # ── Main loop ────────────────────────────────────────────────────────────────
 
 rows = []
+fold_rows = []
 for ds_name in DATASETS:
     print(f"\n{'='*65}", flush=True)
     print(f"  DATASET: {ds_name}", flush=True)
     print(f"{'='*65}", flush=True)
     raw   = load_dataset(ds_name)
     df    = clean(raw)
-    mde   = compute_mde(clean_for_mde(raw), ds_name)
-    fsets = build_feature_sets(df, mde)
-    X, y, _ = fsets["combined"]
-    n_feat = X.shape[1]
+    X     = df.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+    y     = df["binary_label"].values
+    n_feat = len(MDEFeatures(ds_name, include_raw=True).fit(X).feature_names_out_)
     print(f"  combined: {n_feat} features, {len(y):,} samples", flush=True)
 
     # ── Sklearn-pipeline classifiers ─────────────────────────────────────────
     for clf_name, make_fn, use_manual, sub_n in CLASSIFIERS:
+        if clf_name not in MODELS:
+            continue
         print(f"\n  [{clf_name}]", flush=True)
         if use_manual:
-            m = manual_cv(make_fn, X, y, subsample_n=sub_n, model_label=clf_name)
+            m = manual_cv(make_fn, X, y, subsample_n=sub_n, model_label=clf_name, ds_name=ds_name)
         else:
-            s = cross_validate(make_fn(), X, y, cv=CV, scoring=SCORING, n_jobs=1)
-            m = metrics_from_scores(s)
+            def _fp(tr, te, make_fn=make_fn):
+                pipe = make_fn(ds_name)
+                pipe.fit(X.iloc[tr], y[tr])
+                return pipe.predict(X.iloc[te]), pipe.predict_proba(X.iloc[te])[:, 1]
+            m, folds = cv_full_metrics(_fp, X, y, CV, label=clf_name)
+            folds.insert(0, "model", clf_name); folds.insert(0, "dataset", ds_name); fold_rows.append(folds)
         row = {"dataset": ds_name, "model": clf_name, **m}
         print(f"  → F1={m['f1']:.4f} (±{m['f1_std']:.4f})  "
               f"DR={m['dr']:.4f}  FAR={m['far']:.4f}  MCC={m['mcc']:.4f}", flush=True)
         rows.append(row)
 
     # ── TabNet ───────────────────────────────────────────────────────────────
-    print(f"\n  [TabNet]", flush=True)
-    tabnet_m = manual_cv(
+    if "TabNet" in MODELS:
+      print(f"\n  [TabNet]", flush=True)
+      tabnet_m = manual_cv(
         lambda nf=n_feat: TabNetWrapper(nf), X, y,
-        subsample_n=SUBSAMPLE_N, model_label="TabNet",
+        subsample_n=SUBSAMPLE_N, model_label="TabNet", ds_name=ds_name,
     )
-    row_tn = {"dataset": ds_name, "model": "TabNet", **tabnet_m}
-    print(f"  → F1={tabnet_m['f1']:.4f} (±{tabnet_m['f1_std']:.4f})  "
-          f"DR={tabnet_m['dr']:.4f}  FAR={tabnet_m['far']:.4f}  "
-          f"MCC={tabnet_m['mcc']:.4f}", flush=True)
-    rows.append(row_tn)
+      row_tn = {"dataset": ds_name, "model": "TabNet", **tabnet_m}
+      print(f"  → F1={tabnet_m['f1']:.4f} (±{tabnet_m['f1_std']:.4f})  "
+            f"DR={tabnet_m['dr']:.4f}  FAR={tabnet_m['far']:.4f}  "
+            f"MCC={tabnet_m['mcc']:.4f}", flush=True)
+      rows.append(row_tn)
 
     # ── FT-Transformer ───────────────────────────────────────────────────────
-    print(f"\n  [FT-Transformer]", flush=True)
-    ftt_m = manual_cv(
+    if "FT-Transformer" in MODELS:
+      print(f"\n  [FT-Transformer]", flush=True)
+      ftt_m = manual_cv(
         lambda nf=n_feat: FTTransformerClassifier(random_state=RANDOM_STATE),
-        X, y, subsample_n=SUBSAMPLE_N, model_label="FT-Transformer",
+        X, y, subsample_n=SUBSAMPLE_N, model_label="FT-Transformer", ds_name=ds_name,
     )
-    row_ftt = {"dataset": ds_name, "model": "FT-Transformer", **ftt_m}
-    print(f"  → F1={ftt_m['f1']:.4f} (±{ftt_m['f1_std']:.4f})  "
-          f"DR={ftt_m['dr']:.4f}  FAR={ftt_m['far']:.4f}  "
-          f"MCC={ftt_m['mcc']:.4f}", flush=True)
-    rows.append(row_ftt)
+      row_ftt = {"dataset": ds_name, "model": "FT-Transformer", **ftt_m}
+      print(f"  → F1={ftt_m['f1']:.4f} (±{ftt_m['f1_std']:.4f})  "
+            f"DR={ftt_m['dr']:.4f}  FAR={ftt_m['far']:.4f}  "
+            f"MCC={ftt_m['mcc']:.4f}", flush=True)
+      rows.append(row_ftt)
 
 df_out = pd.DataFrame(rows)
-df_out.to_csv(TABLES / "baselines_comparison.csv", index=False)
-print(f"\nSaved: {TABLES / 'baselines_comparison.csv'}", flush=True)
+df_folds = pd.concat(fold_rows, ignore_index=True)
+if ARGS.suffix:
+    df_out.to_csv(TABLES / f"baselines_comparison_{ARGS.suffix}.csv", index=False)
+    df_folds.to_csv(TABLES / f"baselines_comparison_folds_{ARGS.suffix}.csv", index=False)
+    print(f"\nSaved part files with suffix {ARGS.suffix}; run --merge to fold them in", flush=True)
+else:
+    merge_into(TABLES / "baselines_comparison.csv", df_out)
+    merge_into(TABLES / "baselines_comparison_folds.csv", df_folds)
+    print(f"\nSaved: {TABLES / 'baselines_comparison.csv'}", flush=True)

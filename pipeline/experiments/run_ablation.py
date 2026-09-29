@@ -20,26 +20,28 @@ from sklearn.metrics import (
 import lightgbm as lgb
 
 from config import TABLES, RANDOM_STATE
-from preprocess import load_dataset, clean, clean_for_mde
-from entropy_features import compute_mde, build_feature_sets
-from fold_pipeline import make_lgb_pipeline, make_rf_pipeline
+from preprocess import load_dataset, clean
+from fold_pipeline import make_lgb_pipeline, make_rf_pipeline, MDEFeatures
+from metrics import cv_full_metrics
+from sklearn.base import clone
 
 TABLES.mkdir(parents=True, exist_ok=True)
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 DATASETS = ["NSL-KDD", "CICIDS-2017", "CICIDS-2018", "UNSW-NB15"]
+META = ["binary_label", "multi_label", "label_name"]
 
 
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
 def make_rf():
     return RandomForestClassifier(
         n_estimators=200, max_depth=20, min_samples_leaf=5,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE,
     )
 
 
@@ -70,27 +72,26 @@ SCORING = {
 }
 
 
-def run_cv(X, y, model_name, ablation, ds_name):
-    clf_base = make_lgb() if model_name == "LightGBM" else make_rf()
-    pipe = make_lgb_pipeline(clf_base) if model_name == "LightGBM" \
-        else make_rf_pipeline(clf_base)
-    s = cross_validate(pipe, X, y, cv=CV, scoring=SCORING, n_jobs=1)
-    row = {
-        "dataset":  ds_name,
-        "model":    model_name,
-        "ablation": ablation,
-        "n_feat":   X.shape[1],
-        "f1":       round(s["test_f1_weighted"].mean(),        4),
-        "f1_std":   round(s["test_f1_weighted"].std(),         4),
-        "prec":     round(s["test_precision_weighted"].mean(), 4),
-        "rec":      round(s["test_recall_weighted"].mean(),    4),
-        "dr":       round(s["test_dr"].mean(),                 4),
-        "far":      round(s["test_far"].mean(),                4),
-        "acc":      round(s["test_accuracy"].mean(),           4),
-        "mcc":      round(s["test_mcc"].mean(),                4),
-        "auc":      round(s["test_roc_auc"].mean(),            4),
-        "prauc":    round(s["test_prauc"].mean(),              4),
-    }
+def run_cv(X, y, model_name, ablation, ds_name, mde=None):
+    """5-fold CV with the complete metric suite; when `mde` is an MDEFeatures transformer, X is
+    the raw-statistics frame and the entropy features are built inside each fold."""
+    n_feat = {"v": X.shape[1]}
+
+    def fit_predict(tr, te):
+        clf_base = make_lgb() if model_name == "LightGBM" else make_rf()
+        pipe = make_lgb_pipeline(clf_base, mde=clone(mde) if mde is not None else None) if model_name == "LightGBM" \
+            else make_rf_pipeline(clf_base, mde=clone(mde) if mde is not None else None)
+        Xtr = X.iloc[tr] if isinstance(X, pd.DataFrame) else X[tr]
+        Xte = X.iloc[te] if isinstance(X, pd.DataFrame) else X[te]
+        pipe.fit(Xtr, y[tr])
+        if mde is not None:
+            n_feat["v"] = len(pipe.named_steps["mde"].feature_names_out_)
+        return pipe.predict(Xte), pipe.predict_proba(Xte)[:, 1]
+
+    summary, folds = cv_full_metrics(fit_predict, X, y, CV, label=f"{ds_name} {model_name} {ablation}")
+    folds.insert(0, "ablation", ablation); folds.insert(0, "model", model_name); folds.insert(0, "dataset", ds_name)
+    fold_rows.append(folds)
+    row = {"dataset": ds_name, "model": model_name, "ablation": ablation, "n_feat": n_feat["v"], **summary}
     print(
         f"  [{ds_name}] {model_name:12s} | {ablation:14s} | "
         f"F1={row['f1']:.4f} (±{row['f1_std']:.4f})  "
@@ -101,22 +102,23 @@ def run_cv(X, y, model_name, ablation, ds_name):
 
 
 rows = []
+fold_rows = []
 for ds_name in DATASETS:
     print(f"\n{'='*65}", flush=True)
     print(f"  DATASET: {ds_name}", flush=True)
     print(f"{'='*65}", flush=True)
-    raw          = load_dataset(ds_name)
-    df_clean     = clean(raw)
-    df_mde_input = clean_for_mde(raw)
-    mde          = compute_mde(df_mde_input, ds_name)
-    fsets        = build_feature_sets(df_clean, mde)
-    y_ref = fsets["conventional"][1]
-    print(f"  y: {np.bincount(y_ref)} (benign / attack)", flush=True)
+    raw      = load_dataset(ds_name)
+    df_clean = clean(raw)
+    X_raw    = df_clean.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+    y        = df_clean["binary_label"].values
+    print(f"  y: {np.bincount(y)} (benign / attack)", flush=True)
     for ablation in ["conventional", "entropy_only", "combined"]:
-        X, y, _ = fsets[ablation]
         for model_name in ["LightGBM", "RandomForest"]:
-            rows.append(run_cv(X, y, model_name, ablation, ds_name))
+            mde = None if ablation == "conventional" else MDEFeatures(ds_name, include_raw=(ablation == "combined"))
+            X = X_raw.values if mde is None else X_raw
+            rows.append(run_cv(X, y, model_name, ablation, ds_name, mde))
 
 df_out = pd.DataFrame(rows)
 df_out.to_csv(TABLES / "ablation_cv.csv", index=False)
+pd.concat(fold_rows, ignore_index=True).to_csv(TABLES / "ablation_cv_folds.csv", index=False)
 print(f"\nSaved: {TABLES / 'ablation_cv.csv'}", flush=True)

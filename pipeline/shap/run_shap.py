@@ -27,13 +27,14 @@ import lightgbm as lgb
 from config import FIGS, TABLES, RANDOM_STATE
 from preprocess import load_dataset, clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
-from fold_pipeline import PercentileClipper
+from fold_pipeline import PercentileClipper, MDEFeatures
 
 FIGS.mkdir(parents=True, exist_ok=True)
 TABLES.mkdir(parents=True, exist_ok=True)
 CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
 DATASETS = ["NSL-KDD", "CICIDS-2017", "CICIDS-2018", "UNSW-NB15"]
+META = ["binary_label", "multi_label", "label_name"]
 MDE_PREFIXES = ("jsd_", "ade_", "dir_entropy", "flag_entropy", "log_",
                 "mde_score", "conn_state_entropy", "srv_diversity_entropy",
                 "byte_asym_jsd", "ttl_asym_entropy", "log_cv_entropy")
@@ -44,7 +45,7 @@ ACCENT  = "#F77F00"
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
@@ -106,9 +107,11 @@ for ds_name in DATASETS:
     print(f"\n  [{ds_name}]", flush=True)
     raw  = load_dataset(ds_name)
     df   = clean(raw)
-    mde  = compute_mde(clean_for_mde(raw), ds_name)
-    fsets = build_feature_sets(df, mde)
-    X, y, feat = fsets["combined"]
+    X_raw = df.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+    y    = df["binary_label"].values
+    mde_t = MDEFeatures(ds_name, include_raw=True).fit(X_raw)
+    X    = mde_t.transform(X_raw)
+    feat = list(mde_t.feature_names_out_)
 
     bad = [f for f in feat if any(k in f.lower()
            for k in ["label", "class", "attack", "binary", "multi"])]
@@ -147,15 +150,18 @@ for ds_name in ["NSL-KDD", "CICIDS-2017", "UNSW-NB15"]:
     print(f"\n  [{ds_name}]", flush=True)
     raw  = load_dataset(ds_name)
     df   = clean(raw)
-    mde  = compute_mde(clean_for_mde(raw), ds_name)
-    fsets = build_feature_sets(df, mde)
-    X, y, feat = fsets["combined"]
+    X_raw = df.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+    y    = df["binary_label"].values
+    mde_t = MDEFeatures(ds_name, include_raw=True).fit(X_raw)
+    X    = mde_t.transform(X_raw)
+    feat = list(mde_t.feature_names_out_)
     feat = list(feat)
     mde_idx = [i for i, f in enumerate(feat) if is_mde(f)]
 
     fold_imps = []
     for fold_i, (tr, te) in enumerate(CV.split(X, y)):
-        X_tr, X_te, y_tr = X[tr], X[te], y[tr]
+        mde_f = MDEFeatures(ds_name, include_raw=True).fit(X_raw.iloc[tr])
+        X_tr, X_te, y_tr = mde_f.transform(X_raw.iloc[tr]), mde_f.transform(X_raw.iloc[te]), y[tr]
         imp = SimpleImputer(strategy="median")
         cli = PercentileClipper()
         X_tr = cli.fit_transform(imp.fit_transform(X_tr))

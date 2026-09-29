@@ -43,6 +43,21 @@ def load_dataset(name):
     df.columns = df.columns.str.strip()
     label_col = cfg["label_col"]
 
+    # Remove header lines repeated inside the file (rows whose value equals the column name)
+    # and coerce numeric columns that such rows turned into text.
+    probe = next((c for c in df.columns if c != label_col), None)
+    if probe is not None and df[probe].dtype == object:
+        hdr = df[probe].astype(str).str.strip() == probe
+        if hdr.any():
+            df = df.loc[~hdr].reset_index(drop=True)
+            print(f"  Dropped {int(hdr.sum())} repeated header rows")
+    for c in df.columns:
+        if c == label_col or df[c].dtype != object:
+            continue
+        conv = pd.to_numeric(df[c], errors="coerce")
+        if conv.notna().sum() >= 0.99 * df[c].notna().sum():
+            df[c] = conv
+
     if "sample_n" in cfg and len(df) > cfg["sample_n"]:
         df = df.groupby(label_col, group_keys=False).apply(
             lambda x: x.sample(
@@ -100,13 +115,14 @@ def clean(df, label_cols=("binary_label", "multi_label", "label_name")):
     return df
 
 
-def clean_for_mde(df, label_cols=("binary_label", "multi_label", "label_name")):
+def clean_for_mde(df, label_cols=("binary_label", "multi_label", "label_name"),
+                  stats=None, return_stats=False):
     """
-    Returns a globally-imputed copy of df suitable for MDE entropy formula input.
-    MDE features are deterministic closed-form functions of single flows;
-    global median imputation here introduces no cross-fold target leakage.
-    The returned df should only be used to compute MDE features, not as the
-    feature matrix for model training.
+    Returns a NaN-free copy of df for MDE entropy formula input. Missing and infinite
+    values are replaced by column medians taken from `stats` when given (the training
+    portion of a split), otherwise from df itself. With return_stats=True the medians
+    used are returned as well, so a test portion can be imputed with training medians.
+    The returned df is meant only for computing MDE features, not as a model input.
     """
     meta = df[list(label_cols)].copy()
     df_num = df.drop(columns=list(label_cols), errors="ignore")
@@ -116,7 +132,9 @@ def clean_for_mde(df, label_cols=("binary_label", "multi_label", "label_name")):
         df_num[c] = LabelEncoder().fit_transform(df_num[c].astype(str))
 
     df_num = df_num.replace([np.inf, -np.inf], np.nan)
-    df_num = df_num.fillna(df_num.median(numeric_only=True))
+    if stats is None:
+        stats = df_num.median(numeric_only=True)
+    df_num = df_num.fillna(stats)
 
     df_out = pd.concat([df_num, meta], axis=1)
-    return df_out
+    return (df_out, stats) if return_stats else df_out

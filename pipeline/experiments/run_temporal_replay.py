@@ -36,6 +36,7 @@ from config import DATA, TABLES, FIGS, RANDOM_STATE
 from preprocess import clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
 from fold_pipeline import PercentileClipper
+from metrics import full_metrics
 
 TABLES.mkdir(parents=True, exist_ok=True)
 FIGS.mkdir(parents=True, exist_ok=True)
@@ -154,23 +155,10 @@ def youden_threshold(y_tr, y_prob_tr):
 
 
 def window_metrics(y_true, y_pred, y_prob):
-    """Per-window operational metrics; returns None if only one class present."""
+    """Complete metric suite for one window; None when only one class is present."""
     if len(np.unique(y_true)) < 2:
         return None
-    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
-    tn, fp, fn, tp = cm[0, 0], cm[0, 1], cm[1, 0], cm[1, 1]
-    m = {
-        "dr":  round(tp / (tp + fn) if (tp + fn) > 0 else 0.0, 4),
-        "far": round(fp / (fp + tn) if (fp + tn) > 0 else 0.0, 4),
-        "mcc": round(matthews_corrcoef(y_true, y_pred), 4),
-        "f1":  round(f1_score(y_true, y_pred, average="weighted", zero_division=0), 4),
-    }
-    try:
-        m["auc"]   = round(roc_auc_score(y_true, y_prob), 4)
-        m["prauc"] = round(average_precision_score(y_true, y_prob, pos_label=1), 4)
-    except Exception:
-        m["auc"] = m["prauc"] = float("nan")
-    return m
+    return full_metrics(y_true, y_pred, y_prob)
 
 
 # ── Load data ─────────────────────────────────────────────────────────────────
@@ -185,8 +173,8 @@ print(f"  {len(df_te_raw):,} rows | Attack: {df_te_raw['binary_label'].sum():,}"
 # ── Feature construction ──────────────────────────────────────────────────────
 df_tr = clean(df_tr_raw)
 df_te = clean(df_te_raw)
-mde_input_tr = clean_for_mde(df_tr_raw)
-mde_input_te = clean_for_mde(df_te_raw)
+mde_input_tr, mde_stats = clean_for_mde(df_tr_raw, return_stats=True)
+mde_input_te = clean_for_mde(df_te_raw, stats=mde_stats)
 mde_tr = compute_mde(mde_input_tr, "CICIDS-2017")
 mde_te = compute_mde(mde_input_te, "CICIDS-2017", fit_df=mde_input_tr)
 fsets_tr = build_feature_sets(df_tr, mde_tr)
@@ -237,7 +225,7 @@ for ablation, X_tr_use, X_te_use in CONDITIONS:
     # Train classifier — parameters frozen after this point
     clf = lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
     clf.fit(Xtr, y_tr)
 

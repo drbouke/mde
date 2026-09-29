@@ -1,3 +1,3 @@
-category,n_test,DR,FAR
-0,1942,,0.0129
-1,2567,0.9864,
+category,n_test,DR,FAR,n_flagged,n_detected
+0,1942,,0.0124,24.0,
+1,2567,0.9868,,,2533.0

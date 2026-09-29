@@ -27,7 +27,7 @@ DATASETS = {
         "path": DATA / "CICIDS2018" / "datasetcsv.csv",
         "label_col": "class",
         "benign_labels": [0, "0"],
-        "drop_cols": ["Timestamp"],
+        "drop_cols": ["Timestamp", "Dst Port"],
         "type": "cicids18",
         "sample_n": 150_000,
     },

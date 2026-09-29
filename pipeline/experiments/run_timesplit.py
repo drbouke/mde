@@ -28,6 +28,7 @@ from config import DATA, TABLES, RANDOM_STATE
 from preprocess import clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
 from fold_pipeline import PercentileClipper
+from metrics import full_metrics
 
 TABLES.mkdir(parents=True, exist_ok=True)
 AUROC_THRESHOLD = 0.99
@@ -92,33 +93,19 @@ def debias_mask(X_tr, y_tr, feat_names, thr=AUROC_THRESHOLD):
     return [i for i, *_ in keep]
 
 
-def full_metrics(y_true, y_pred, y_prob):
-    cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
-    tn, fp, fn, tp = cm[0, 0], cm[0, 1], cm[1, 0], cm[1, 1]
-    return {
-        "f1":    round(f1_score(y_true, y_pred, average="weighted", zero_division=0), 4),
-        "prec":  round(precision_score(y_true, y_pred, average="weighted", zero_division=0), 4),
-        "rec":   round(recall_score(y_true, y_pred, average="weighted", zero_division=0), 4),
-        "dr":    round(tp / (tp + fn) if (tp + fn) > 0 else 0.0, 4),
-        "far":   round(fp / (fp + tn) if (fp + tn) > 0 else 0.0, 4),
-        "acc":   round(accuracy_score(y_true, y_pred), 4),
-        "mcc":   round(matthews_corrcoef(y_true, y_pred), 4),
-        "auc":   round(roc_auc_score(y_true, y_prob), 4),
-        "prauc": round(average_precision_score(y_true, y_prob, pos_label=1), 4),
-    }
 
 
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
 def make_rf():
     return RandomForestClassifier(
         n_estimators=200, max_depth=20, min_samples_leaf=5,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE,
     )
 
 
@@ -140,8 +127,8 @@ print(f"  {len(df_te_raw):,} rows", flush=True)
 
 df_tr = clean(df_tr_raw)
 df_te = clean(df_te_raw)
-mde_input_tr = clean_for_mde(df_tr_raw)
-mde_input_te = clean_for_mde(df_te_raw)
+mde_input_tr, mde_stats = clean_for_mde(df_tr_raw, return_stats=True)
+mde_input_te = clean_for_mde(df_te_raw, stats=mde_stats)
 mde_tr = compute_mde(mde_input_tr, "CICIDS-2017")
 mde_te = compute_mde(mde_input_te, "CICIDS-2017", fit_df=mde_input_tr)
 fsets_tr = build_feature_sets(df_tr, mde_tr)

@@ -25,6 +25,7 @@ from config import TABLES, RANDOM_STATE
 from preprocess import load_dataset, clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
 from fold_pipeline import make_lgb_pipeline, make_rf_pipeline
+from metrics import full_metrics
 
 TABLES.mkdir(parents=True, exist_ok=True)
 HOLDOUT_FAMILIES = ["Infiltration", "Bot"]
@@ -33,14 +34,14 @@ HOLDOUT_FAMILIES = ["Infiltration", "Bot"]
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
 def make_rf():
     return RandomForestClassifier(
         n_estimators=200, max_depth=20, min_samples_leaf=5,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE,
     )
 
 
@@ -66,8 +67,8 @@ print(f"Test:  {len(df_test_raw):,} flows  "
 
 df_tr = clean(df_train_raw)
 df_te = clean(df_test_raw)
-mde_input_tr = clean_for_mde(df_train_raw)
-mde_input_te = clean_for_mde(df_test_raw)
+mde_input_tr, mde_stats = clean_for_mde(df_train_raw, return_stats=True)
+mde_input_te = clean_for_mde(df_test_raw, stats=mde_stats)
 mde_tr = compute_mde(mde_input_tr, "CICIDS-2017")
 mde_te = compute_mde(mde_input_te, "CICIDS-2017", fit_df=mde_input_tr)
 fsets_tr = build_feature_sets(df_tr, mde_tr)
@@ -88,25 +89,15 @@ for ablation in ["conventional", "entropy_only", "combined"]:
         y_pred = pipe.predict(X_te_a)
         y_prob = pipe.predict_proba(X_te_a)[:, 1]
 
-        f1   = round(f1_score(y_te, y_pred, average="weighted", zero_division=0), 4)
-        auc  = round(roc_auc_score(y_te, y_prob), 4)
-        acc  = round(accuracy_score(y_te, y_pred), 4)
-        prec = round(precision_score(y_te, y_pred, average="weighted", zero_division=0), 4)
-        rec  = round(recall_score(y_te, y_pred, average="weighted", zero_division=0), 4)
-        cm = confusion_matrix(y_te, y_pred)
-        tn, fp, fn_val, tp = cm.ravel() if cm.shape == (2, 2) else (0, 0, 0, 0)
-        dr  = round(tp / (tp + fn_val) if (tp + fn_val) > 0 else 0, 4)
-        far = round(fp / (fp + tn) if (fp + tn) > 0 else 0, 4)
-
+        m = full_metrics(y_te, y_pred, y_prob)
         print(f"  [{ablation:14s}] {model_name:12s} | "
-              f"F1={f1:.4f}  AUC={auc:.4f}  DR={dr:.4f}  FAR={far:.4f}", flush=True)
+              f"F1={m['f1']:.4f}  AUC={m['auc']:.4f}  DR={m['dr']:.4f}  FAR={m['far']:.4f}", flush=True)
         rows.append({
             "holdout_families": str(HOLDOUT_FAMILIES),
             "model": model_name, "ablation": ablation,
             "n_train": int(len(y_tr)), "n_test": int(len(y_te)),
-            "n_feat": X_tr_a.shape[1],
-            "f1": f1, "auc": auc, "acc": acc, "prec": prec, "rec": rec,
-            "dr_attack": dr, "far_benign": far,
+            "n_feat": X_tr_a.shape[1], **m,
+            "dr_attack": m["dr"], "far_benign": m["far"],
         })
 
 df_out = pd.DataFrame(rows)

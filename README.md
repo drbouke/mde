@@ -17,7 +17,8 @@ Reproducible code for the paper **Multi-Level Distributional Entropy for Explain
 │   ├── config.py               # Dataset paths, random seeds, ablation settings
 │   ├── preprocess.py           # Dataset loading, cleaning, label encoding
 │   ├── entropy_features.py     # MDE computation: L1 ADE, L2 JSD, L3 flag entropy
-│   ├── fold_pipeline.py        # PercentileClipper; fold-local sklearn Pipeline
+│   ├── fold_pipeline.py        # PercentileClipper, MDEFeatures (fold-local entropy features), Pipelines
+│   ├── metrics.py              # Complete metric suite (confusion counts, P/R/F1, DR, FAR, MCC, AUC, PR-AUC)
 │   └── visualize.py            # Figure helpers
 │
 ├── pipeline/                   # Organized experiment entry points
@@ -25,13 +26,18 @@ Reproducible code for the paper **Multi-Level Distributional Entropy for Explain
 │   │   ├── run_ablation.py     # Main ablation: 4 datasets × 3 conditions × 2 models
 │   │   ├── run_timesplit.py    # CICIDS-2017 temporal split (Mon–Thu → Friday)
 │   │   ├── run_temporal_replay.py  # Pseudo-live chronological replay evaluation
-│   │   ├── run_baselines.py    # XGBoost + MLP baseline comparison
+│   │   ├── run_baselines.py    # Seven-classifier comparison (LGB, RF, XGB, CatBoost, MLP, TabNet, FT-Transformer)
 │   │   ├── run_unseen.py       # Unseen attack family evaluation
-│   │   └── run_perclass.py     # Per-category detection rates
+│   │   ├── run_perclass.py     # Per-category detection rates
+│   │   └── run_extra.py        # Cross-dataset transfer, noise robustness, entropy vs simple statistics, profiling
 │   ├── evaluation/
-│   │   └── run_figures.py      # ROC curves, confusion matrices, JSD figure
+│   │   ├── run_figures.py      # ROC curves, confusion matrices, JSD figure
+│   │   ├── run_viz.py          # Class distribution, entropy distributions, heatmap
+│   │   ├── ablation_stats.py   # Per-fold confidence intervals and Wilcoxon tests
+│   │   └── make_tables.py      # LaTeX row blocks for every result table from the CSVs
 │   ├── shap/
-│   │   └── run_shap.py         # SHAP waterfall/beeswarm + fold stability
+│   │   ├── run_shap.py         # SHAP waterfall/beeswarm + fold stability
+│   │   └── shap_rank_report.py # Mean |SHAP| rankings and top instance contributors
 │   └── scripts/
 │       └── run_all.py          # Top-level orchestrator (runs all stages)
 │
@@ -43,7 +49,7 @@ Reproducible code for the paper **Multi-Level Distributional Entropy for Explain
 │
 ├── results/
 │   ├── figures/                # Generated PDFs: ROC, CM, SHAP, ablation
-│   └── tables/                 # Generated CSVs: ablation, timesplit, baselines
+│   └── tables/                 # Generated CSVs (summary and per-fold) for every experiment
 │
 ├── requirements.txt
 └── README.md
@@ -95,7 +101,7 @@ python pipeline/experiments/run_timesplit.py
 # Pseudo-live temporal replay (chronological windows, fixed vs Youden threshold)
 python pipeline/experiments/run_temporal_replay.py
 
-# XGBoost + MLP baselines
+# Seven-classifier comparison
 python pipeline/experiments/run_baselines.py
 
 # Unseen attack families (Infiltration + Bot held-out)
@@ -109,7 +115,32 @@ python pipeline/evaluation/run_figures.py
 
 # SHAP waterfall/beeswarm figures + fold stability metrics
 python pipeline/shap/run_shap.py
+
+# Cross-dataset transfer, noise robustness, entropy vs simple statistics, profiling
+python pipeline/experiments/run_extra.py            # or --only profiling (run alone on an idle machine)
+
+# SHAP rankings, per-fold statistics, and LaTeX table rows
+python pipeline/shap/shap_rank_report.py
+python pipeline/evaluation/ablation_stats.py
+python pipeline/evaluation/make_tables.py
 ```
+
+Every experiment records the complete metric suite for every evaluation set (confusion counts,
+accuracy, weighted/macro/attack-class precision, recall and F1, DR, FAR, FNR, TNR, balanced
+accuracy, MCC, ROC-AUC, PR-AUC); cross-validated experiments also write a `*_folds.csv` table.
+
+### Notes on the current version
+- The cross-directional JSD is computed exactly (64-point Gauss-Hermite quadrature of the two
+  Gaussian densities) and lies in [0, ln 2]; `jsd_gaussian_moment_matched` is kept only for comparison.
+- CICIDS-2018 as distributed repeats its header line inside the data; the loader removes those rows
+  and coerces the affected numeric columns.
+- The medians that fill missing entropy inputs and the min-max bounds of the composite score are
+  fitted on the training portion of every split (`MDEFeatures` transformer inside the Pipeline).
+- Tree ensembles use all cores except in the profiling table, which is single-threaded by definition.
+- Every classifier in the comparison table, including MLP, TabNet, and FT-Transformer, trains on the
+  full training fold under the same fold-local pipeline. `run_baselines.py` accepts `--datasets`,
+  `--models`, and `--suffix` to run a subset (merged with `--merge`), and checkpoints every finished
+  fold in `results/tables/_ckpt_baselines.csv` so an interrupted run resumes at the next fold.
 
 All outputs are written to `results/figures/` (PDFs) and `results/tables/` (CSVs).
 

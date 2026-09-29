@@ -23,6 +23,10 @@ STAGES = [
     ("ROC / CM / JSD figures",                           ROOT / "pipeline/evaluation/run_figures.py"),
     ("Class distribution / heatmap / model comparison",  ROOT / "pipeline/evaluation/run_viz.py"),
     ("SHAP figures + fold stability",                    ROOT / "pipeline/shap/run_shap.py"),
+    ("SHAP rankings and top instances",                  ROOT / "pipeline/shap/shap_rank_report.py"),
+    ("Transfer / robustness / simple statistics / profiling", ROOT / "pipeline/experiments/run_extra.py"),
+    ("Per-fold statistics",                              ROOT / "pipeline/evaluation/ablation_stats.py"),
+    ("LaTeX table rows",                                 ROOT / "pipeline/evaluation/make_tables.py"),
 ]
 
 

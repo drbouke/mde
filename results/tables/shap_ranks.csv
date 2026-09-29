@@ -1,0 +1,280 @@
+dataset,rank,feature,is_mde,mean_abs_shap
+NSL-KDD,1,src_bytes,False,3.21852
+NSL-KDD,2,dst_bytes,False,1.29625
+NSL-KDD,3,flag,False,1.11093
+NSL-KDD,4,dst_host_rerror_rate,False,1.01445
+NSL-KDD,5,dst_host_srv_count,False,0.8742
+NSL-KDD,6,service,False,0.8181
+NSL-KDD,7,dst_host_same_src_port_rate,False,0.75154
+NSL-KDD,8,logged_in,False,0.72022
+NSL-KDD,9,count,False,0.62748
+NSL-KDD,10,duration,False,0.61914
+NSL-KDD,11,srv_count,False,0.6014
+NSL-KDD,12,dst_host_srv_rerror_rate,False,0.41556
+NSL-KDD,13,dst_host_srv_diff_host_rate,False,0.32876
+NSL-KDD,14,conn_state_entropy,True,0.31355
+NSL-KDD,15,protocol_type,False,0.2418
+NSL-KDD,16,same_srv_rate,False,0.21778
+NSL-KDD,17,mde_score,True,0.19624
+NSL-KDD,18,hot,False,0.17939
+NSL-KDD,19,dst_host_diff_srv_rate,False,0.17357
+NSL-KDD,20,dir_entropy_bytes,True,0.17005
+NSL-KDD,21,byte_asym_jsd,True,0.1698
+NSL-KDD,22,log_dst_bytes,True,0.14786
+NSL-KDD,23,dst_host_count,False,0.13935
+NSL-KDD,24,dst_host_same_srv_rate,False,0.13023
+NSL-KDD,25,dst_host_serror_rate,False,0.10611
+NSL-KDD,26,log_src_bytes,True,0.10456
+NSL-KDD,27,serror_rate,False,0.10232
+NSL-KDD,28,srv_serror_rate,False,0.07595
+NSL-KDD,29,srv_diff_host_rate,False,0.07419
+NSL-KDD,30,dst_host_srv_serror_rate,False,0.07192
+NSL-KDD,31,rerror_rate,False,0.03334
+NSL-KDD,32,diff_srv_rate,False,0.02565
+NSL-KDD,33,num_failed_logins,False,0.02531
+NSL-KDD,34,srv_diversity_entropy,True,0.0212
+NSL-KDD,35,srv_rerror_rate,False,0.01451
+NSL-KDD,36,num_compromised,False,0.01215
+NSL-KDD,37,num_file_creations,False,0.01035
+NSL-KDD,38,is_guest_login,False,0.00753
+NSL-KDD,39,num_root,False,0.00733
+NSL-KDD,40,wrong_fragment,False,0.00234
+NSL-KDD,41,num_access_files,False,0.002
+NSL-KDD,42,root_shell,False,0.00021
+NSL-KDD,43,num_outbound_cmds,False,0.0
+NSL-KDD,44,num_shells,False,0.0
+NSL-KDD,45,urgent,False,0.0
+NSL-KDD,46,land,False,0.0
+NSL-KDD,47,is_host_login,False,0.0
+NSL-KDD,48,su_attempted,False,0.0
+CICIDS-2017,1,flag_entropy,True,1.41941
+CICIDS-2017,2,Init_Win_bytes_forward,False,1.3467
+CICIDS-2017,3,Bwd Packet Length Std,False,1.20006
+CICIDS-2017,4,Bwd Packet Length Min,False,1.01669
+CICIDS-2017,5,Init_Win_bytes_backward,False,0.76993
+CICIDS-2017,6,Average Packet Size,False,0.45335
+CICIDS-2017,7,Packet Length Std,False,0.33139
+CICIDS-2017,8,jsd_iat,True,0.32637
+CICIDS-2017,9,min_seg_size_forward,False,0.32132
+CICIDS-2017,10,Bwd Packet Length Mean,False,0.27824
+CICIDS-2017,11,Total Length of Bwd Packets,False,0.27728
+CICIDS-2017,12,Fwd Packet Length Std,False,0.27341
+CICIDS-2017,13,mde_score,True,0.26638
+CICIDS-2017,14,Flow IAT Min,False,0.21505
+CICIDS-2017,15,Bwd Header Length,False,0.20532
+CICIDS-2017,16,Total Backward Packets,False,0.20036
+CICIDS-2017,17,ade_fwd_pkt_range,True,0.18038
+CICIDS-2017,18,Fwd Header Length,False,0.17622
+CICIDS-2017,19,jsd_pkt_len,True,0.1574
+CICIDS-2017,20,Fwd IAT Min,False,0.13349
+CICIDS-2017,21,Bwd Packets/s,False,0.09884
+CICIDS-2017,22,act_data_pkt_fwd,False,0.09213
+CICIDS-2017,23,Idle Max,False,0.08622
+CICIDS-2017,24,Max Packet Length,False,0.08547
+CICIDS-2017,25,Flow IAT Max,False,0.07989
+CICIDS-2017,26,Fwd Packet Length Mean,False,0.07733
+CICIDS-2017,27,PSH Flag Count,False,0.0759
+CICIDS-2017,28,Flow IAT Mean,False,0.07336
+CICIDS-2017,29,Flow Bytes/s,False,0.07288
+CICIDS-2017,30,Flow Duration,False,0.06831
+CICIDS-2017,31,Total Length of Fwd Packets,False,0.06651
+CICIDS-2017,32,dir_entropy_pkts,True,0.06436
+CICIDS-2017,33,Fwd Packet Length Max,False,0.06188
+CICIDS-2017,34,Idle Min,False,0.06109
+CICIDS-2017,35,Total Fwd Packets,False,0.05518
+CICIDS-2017,36,Fwd Packets/s,False,0.05518
+CICIDS-2017,37,Fwd IAT Total,False,0.05339
+CICIDS-2017,38,URG Flag Count,False,0.05181
+CICIDS-2017,39,Active Std,False,0.05154
+CICIDS-2017,40,Bwd IAT Std,False,0.05101
+CICIDS-2017,41,FIN Flag Count,False,0.05028
+CICIDS-2017,42,Fwd IAT Max,False,0.04893
+CICIDS-2017,43,Active Min,False,0.04706
+CICIDS-2017,44,Flow Packets/s,False,0.03953
+CICIDS-2017,45,Fwd IAT Mean,False,0.0391
+CICIDS-2017,46,Idle Mean,False,0.03897
+CICIDS-2017,47,Bwd Packet Length Max,False,0.03806
+CICIDS-2017,48,ade_bwd_pkt_range,True,0.03475
+CICIDS-2017,49,Packet Length Mean,False,0.03456
+CICIDS-2017,50,Bwd IAT Mean,False,0.0317
+CICIDS-2017,51,Bwd IAT Total,False,0.03093
+CICIDS-2017,52,Flow IAT Std,False,0.03049
+CICIDS-2017,53,Down/Up Ratio,False,0.02995
+CICIDS-2017,54,Bwd IAT Min,False,0.02809
+CICIDS-2017,55,log_byte_rate,True,0.02597
+CICIDS-2017,56,Fwd IAT Std,False,0.02519
+CICIDS-2017,57,Active Mean,False,0.02491
+CICIDS-2017,58,ACK Flag Count,False,0.02373
+CICIDS-2017,59,ade_bwd_iat_gauss,True,0.0178
+CICIDS-2017,60,Fwd Packet Length Min,False,0.01717
+CICIDS-2017,61,Fwd PSH Flags,False,0.01527
+CICIDS-2017,62,Min Packet Length,False,0.01206
+CICIDS-2017,63,Active Max,False,0.01142
+CICIDS-2017,64,ade_fwd_iat_gauss,True,0.01064
+CICIDS-2017,65,Bwd IAT Max,False,0.01043
+CICIDS-2017,66,Idle Std,False,0.00662
+CICIDS-2017,67,ade_bwd_pkt_gauss,True,0.00644
+CICIDS-2017,68,Packet Length Variance,False,0.00513
+CICIDS-2017,69,ade_fwd_pkt_gauss,True,0.00455
+CICIDS-2017,70,Subflow Fwd Bytes,False,0.0
+CICIDS-2017,71,Bwd Avg Bulk Rate,False,0.0
+CICIDS-2017,72,Subflow Fwd Packets,False,0.0
+CICIDS-2017,73,Fwd Header Length.1,False,0.0
+CICIDS-2017,74,Avg Bwd Segment Size,False,0.0
+CICIDS-2017,75,Avg Fwd Segment Size,False,0.0
+CICIDS-2017,76,ECE Flag Count,False,0.0
+CICIDS-2017,77,CWE Flag Count,False,0.0
+CICIDS-2017,78,Fwd URG Flags,False,0.0
+CICIDS-2017,79,RST Flag Count,False,0.0
+CICIDS-2017,80,SYN Flag Count,False,0.0
+CICIDS-2017,81,Bwd URG Flags,False,0.0
+CICIDS-2017,82,Bwd PSH Flags,False,0.0
+CICIDS-2017,83,Protocol,False,0.0
+CICIDS-2017,84,Bwd Avg Packets/Bulk,False,0.0
+CICIDS-2017,85,Bwd Avg Bytes/Bulk,False,0.0
+CICIDS-2017,86,Fwd Avg Bulk Rate,False,0.0
+CICIDS-2017,87,Fwd Avg Packets/Bulk,False,0.0
+CICIDS-2017,88,Fwd Avg Bytes/Bulk,False,0.0
+CICIDS-2017,89,Subflow Bwd Packets,False,0.0
+CICIDS-2017,90,Subflow Bwd Bytes,False,0.0
+CICIDS-2018,1,Fwd Seg Size Min,False,0.3443
+CICIDS-2018,2,Flow IAT Min,False,0.23812
+CICIDS-2018,3,Init Fwd Win Byts,False,0.08472
+CICIDS-2018,4,mde_score,True,0.05393
+CICIDS-2018,5,Flow IAT Std,False,0.04912
+CICIDS-2018,6,Flow IAT Mean,False,0.04676
+CICIDS-2018,7,TotLen Fwd Pkts,False,0.03863
+CICIDS-2018,8,Flow Pkts/s,False,0.03511
+CICIDS-2018,9,Bwd IAT Min,False,0.03071
+CICIDS-2018,10,Flow IAT Max,False,0.03022
+CICIDS-2018,11,Fwd IAT Min,False,0.03021
+CICIDS-2018,12,Flow Duration,False,0.02976
+CICIDS-2018,13,Flow Byts/s,False,0.02913
+CICIDS-2018,14,PSH Flag Cnt,False,0.02913
+CICIDS-2018,15,Pkt Len Max,False,0.0291
+CICIDS-2018,16,Fwd Pkt Len Max,False,0.02838
+CICIDS-2018,17,Pkt Len Mean,False,0.02785
+CICIDS-2018,18,Idle Mean,False,0.02692
+CICIDS-2018,19,Init Bwd Win Byts,False,0.02637
+CICIDS-2018,20,Fwd Pkt Len Mean,False,0.02507
+CICIDS-2018,21,RST Flag Cnt,False,0.02475
+CICIDS-2018,22,Pkt Size Avg,False,0.02382
+CICIDS-2018,23,flag_entropy,True,0.02186
+CICIDS-2018,24,Bwd Pkts/s,False,0.02186
+CICIDS-2018,25,jsd_pkt_len,True,0.02089
+CICIDS-2018,26,Fwd Header Len,False,0.02085
+CICIDS-2018,27,Fwd Pkt Len Min,False,0.02018
+CICIDS-2018,28,Fwd Pkts/s,False,0.01794
+CICIDS-2018,29,Bwd Pkt Len Max,False,0.01638
+CICIDS-2018,30,Idle Min,False,0.01601
+CICIDS-2018,31,Bwd Pkt Len Mean,False,0.01597
+CICIDS-2018,32,Bwd Pkt Len Std,False,0.01578
+CICIDS-2018,33,Fwd Pkt Len Std,False,0.01467
+CICIDS-2018,34,Fwd IAT Tot,False,0.01423
+CICIDS-2018,35,log_byte_rate,True,0.01291
+CICIDS-2018,36,Active Min,False,0.01281
+CICIDS-2018,37,Fwd IAT Max,False,0.0125
+CICIDS-2018,38,Bwd IAT Tot,False,0.01234
+CICIDS-2018,39,Pkt Len Std,False,0.01186
+CICIDS-2018,40,jsd_iat,True,0.01108
+CICIDS-2018,41,dir_entropy_pkts,True,0.01073
+CICIDS-2018,42,Bwd IAT Mean,False,0.01062
+CICIDS-2018,43,Fwd IAT Mean,False,0.01019
+CICIDS-2018,44,Fwd IAT Std,False,0.01016
+CICIDS-2018,45,TotLen Bwd Pkts,False,0.00971
+CICIDS-2018,46,ACK Flag Cnt,False,0.00968
+CICIDS-2018,47,Bwd Pkt Len Min,False,0.00865
+CICIDS-2018,48,Idle Std,False,0.00832
+CICIDS-2018,49,Pkt Len Min,False,0.00771
+CICIDS-2018,50,Bwd Header Len,False,0.00745
+CICIDS-2018,51,Active Mean,False,0.00737
+CICIDS-2018,52,ade_fwd_pkt_range,True,0.00711
+CICIDS-2018,53,ade_fwd_iat_gauss,True,0.00686
+CICIDS-2018,54,ade_bwd_iat_gauss,True,0.00673
+CICIDS-2018,55,Idle Max,False,0.00585
+CICIDS-2018,56,Bwd IAT Max,False,0.00583
+CICIDS-2018,57,Tot Bwd Pkts,False,0.00551
+CICIDS-2018,58,Tot Fwd Pkts,False,0.00518
+CICIDS-2018,59,Bwd IAT Std,False,0.00505
+CICIDS-2018,60,Active Max,False,0.00495
+CICIDS-2018,61,ade_bwd_pkt_range,True,0.00478
+CICIDS-2018,62,Down/Up Ratio,False,0.00436
+CICIDS-2018,63,ade_fwd_pkt_gauss,True,0.00408
+CICIDS-2018,64,Fwd URG Flags,False,0.00372
+CICIDS-2018,65,Fwd Act Data Pkts,False,0.0037
+CICIDS-2018,66,Protocol,False,0.00327
+CICIDS-2018,67,Active Std,False,0.00292
+CICIDS-2018,68,URG Flag Cnt,False,0.0017
+CICIDS-2018,69,Fwd PSH Flags,False,0.00115
+CICIDS-2018,70,FIN Flag Cnt,False,0.00068
+CICIDS-2018,71,Subflow Bwd Byts,False,0.00064
+CICIDS-2018,72,ade_bwd_pkt_gauss,True,0.00044
+CICIDS-2018,73,Subflow Bwd Pkts,False,0.0
+CICIDS-2018,74,Bwd Seg Size Avg,False,0.0
+CICIDS-2018,75,Fwd Seg Size Avg,False,0.0
+CICIDS-2018,76,ECE Flag Cnt,False,0.0
+CICIDS-2018,77,CWE Flag Count,False,0.0
+CICIDS-2018,78,Bwd URG Flags,False,0.0
+CICIDS-2018,79,Pkt Len Var,False,0.0
+CICIDS-2018,80,SYN Flag Cnt,False,0.0
+CICIDS-2018,81,Bwd PSH Flags,False,0.0
+CICIDS-2018,82,Subflow Fwd Byts,False,0.0
+CICIDS-2018,83,Subflow Fwd Pkts,False,0.0
+CICIDS-2018,84,Bwd Blk Rate Avg,False,0.0
+CICIDS-2018,85,Bwd Pkts/b Avg,False,0.0
+CICIDS-2018,86,Bwd Byts/b Avg,False,0.0
+CICIDS-2018,87,Fwd Blk Rate Avg,False,0.0
+CICIDS-2018,88,Fwd Pkts/b Avg,False,0.0
+CICIDS-2018,89,Fwd Byts/b Avg,False,0.0
+UNSW-NB15,1,ct_state_ttl,False,2.31329
+UNSW-NB15,2,sttl,False,1.17147
+UNSW-NB15,3,service,False,0.21536
+UNSW-NB15,4,ct_srv_dst,False,0.13266
+UNSW-NB15,5,ct_dst_sport_ltm,False,0.1119
+UNSW-NB15,6,ct_srv_src,False,0.0879
+UNSW-NB15,7,sbytes,False,0.08363
+UNSW-NB15,8,dbytes,False,0.07269
+UNSW-NB15,9,smeansz,False,0.06459
+UNSW-NB15,10,ct_dst_ltm,False,0.06179
+UNSW-NB15,11,ct_src_ ltm,False,0.05671
+UNSW-NB15,12,synack,False,0.0516
+UNSW-NB15,13,jsd_pkt_sz,True,0.04065
+UNSW-NB15,14,Sload,False,0.03459
+UNSW-NB15,15,dmeansz,False,0.03456
+UNSW-NB15,16,ct_src_dport_ltm,False,0.03258
+UNSW-NB15,17,dloss,False,0.0311
+UNSW-NB15,18,dtcpb,False,0.03099
+UNSW-NB15,19,ct_dst_src_ltm,False,0.03059
+UNSW-NB15,20,jsd_iat,True,0.0293
+UNSW-NB15,21,Djit,False,0.02845
+UNSW-NB15,22,stcpb,False,0.0276
+UNSW-NB15,23,dur,False,0.027
+UNSW-NB15,24,proto,False,0.02605
+UNSW-NB15,25,Dload,False,0.02574
+UNSW-NB15,26,ttl_asym_entropy,True,0.0256
+UNSW-NB15,27,mde_score,True,0.02178
+UNSW-NB15,28,dir_entropy_bytes,True,0.01991
+UNSW-NB15,29,Sjit,False,0.01749
+UNSW-NB15,30,is_sm_ips_ports,False,0.0165
+UNSW-NB15,31,ade_dst_iat,True,0.01433
+UNSW-NB15,32,dir_entropy_pkts,True,0.01361
+UNSW-NB15,33,Spkts,False,0.012
+UNSW-NB15,34,sloss,False,0.01176
+UNSW-NB15,35,Sintpkt,False,0.01109
+UNSW-NB15,36,log_sload,True,0.00924
+UNSW-NB15,37,Dintpkt,False,0.00908
+UNSW-NB15,38,log_dload,True,0.00641
+UNSW-NB15,39,ackdat,False,0.00617
+UNSW-NB15,40,tcprtt,False,0.00606
+UNSW-NB15,41,ade_pkt_range,True,0.00503
+UNSW-NB15,42,Dpkts,False,0.005
+UNSW-NB15,43,ade_src_iat,True,0.00466
+UNSW-NB15,44,state,False,0.00325
+UNSW-NB15,45,trans_depth,False,0.00088
+UNSW-NB15,46,swin,False,0.00037
+UNSW-NB15,47,ct_flw_http_mthd,False,9e-05
+UNSW-NB15,48,dttl,False,0.0
+UNSW-NB15,49,res_bdy_len,False,0.0
+UNSW-NB15,50,dwin,False,0.0
+UNSW-NB15,51,is_ftp_login,False,0.0
+UNSW-NB15,52,ct_ftp_cmd,False,0.0

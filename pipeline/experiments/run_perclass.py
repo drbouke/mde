@@ -22,7 +22,10 @@ import lightgbm as lgb
 from config import DATA, TABLES, RANDOM_STATE
 from preprocess import load_dataset, clean, clean_for_mde
 from entropy_features import compute_mde, build_feature_sets
-from fold_pipeline import PercentileClipper
+from fold_pipeline import PercentileClipper, MDEFeatures
+from metrics import full_metrics
+overall_rows = []
+META = ["binary_label", "multi_label", "label_name"]
 
 TABLES.mkdir(parents=True, exist_ok=True)
 AUROC_THRESHOLD = 0.99
@@ -34,7 +37,7 @@ DROP_COLS = ["Flow ID", "Source IP", "Source Port",
 def make_lgb():
     return lgb.LGBMClassifier(
         n_estimators=300, learning_rate=0.05, num_leaves=63,
-        class_weight="balanced", n_jobs=1, random_state=RANDOM_STATE, verbose=-1,
+        class_weight="balanced", n_jobs=-1, random_state=RANDOM_STATE, verbose=-1,
     )
 
 
@@ -116,8 +119,8 @@ df_te_raw = load_cicids_files(fri_files,   sample_n=100_000)
 
 df_tr = clean(df_tr_raw)
 df_te = clean(df_te_raw)
-mde_input_tr = clean_for_mde(df_tr_raw)
-mde_input_te = clean_for_mde(df_te_raw)
+mde_input_tr, mde_stats = clean_for_mde(df_tr_raw, return_stats=True)
+mde_input_te = clean_for_mde(df_te_raw, stats=mde_stats)
 mde_tr = compute_mde(mde_input_tr, "CICIDS-2017")
 mde_te = compute_mde(mde_input_te, "CICIDS-2017", fit_df=mde_input_tr)
 fsets_tr = build_feature_sets(df_tr, mde_tr)
@@ -147,6 +150,7 @@ Xtr_comb, Xte_comb = preprocess_fit_transform(X_tr_comb, X_te_comb)
 clf17 = make_lgb()
 clf17.fit(Xtr_comb, y_tr)
 y_pred17 = clf17.predict(Xte_comb)
+overall_rows.append({"split": "CICIDS-2017 temporal", **full_metrics(y_te, y_pred17, clf17.predict_proba(Xte_comb)[:, 1])})
 
 label_names_te = df_te_raw["label_name"].values
 rows_ts = []
@@ -157,10 +161,10 @@ for cat in sorted(df_te_raw["label_name"].unique()):
         continue
     if cat == "BENIGN":
         far = (y_pred17[mask] == 1).mean()
-        rows_ts.append({"category": cat, "n_test": int(n), "DR": None, "FAR": round(far, 4)})
+        rows_ts.append({"category": cat, "n_test": int(n), "DR": None, "FAR": round(far, 4), "n_flagged": int(mask.sum() * far)})
     else:
         dr = (y_pred17[mask] == 1).mean()
-        rows_ts.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None})
+        rows_ts.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None, "n_detected": int(round(mask.sum() * dr))})
 
 df_ts = pd.DataFrame(rows_ts)
 print(df_ts.to_string(index=False), flush=True)
@@ -171,18 +175,19 @@ df_ts.to_csv(TABLES / "perclass_timesplit.csv", index=False)
 print("\n=== CICIDS-2018 Per-Category (20% hold-out) ===", flush=True)
 raw18 = load_dataset("CICIDS-2018")
 df18  = clean(raw18)
-mde18 = compute_mde(clean_for_mde(raw18), "CICIDS-2018")
-fsets18 = build_feature_sets(df18, mde18)
-X18, y18, _ = fsets18["combined"]
-
-X_tr18, X_te18, y_tr18, y_te18, idx_tr18, idx_te18 = train_test_split(
-    X18, y18, np.arange(len(y18)), test_size=0.2, stratify=y18,
-    random_state=RANDOM_STATE)
+X_raw18 = df18.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+y18 = df18["binary_label"].values
+idx_tr18, idx_te18 = train_test_split(np.arange(len(y18)), test_size=0.2, stratify=y18,
+                                      random_state=RANDOM_STATE)
+mde_t18 = MDEFeatures("CICIDS-2018", include_raw=True).fit(X_raw18.iloc[idx_tr18])
+X_tr18, X_te18 = mde_t18.transform(X_raw18.iloc[idx_tr18]), mde_t18.transform(X_raw18.iloc[idx_te18])
+y_tr18, y_te18 = y18[idx_tr18], y18[idx_te18]
 
 Xtr18, Xte18 = preprocess_fit_transform(X_tr18, X_te18)
 clf18 = make_lgb()
 clf18.fit(Xtr18, y_tr18)
 y_pred18 = clf18.predict(Xte18)
+overall_rows.append({"split": "CICIDS-2018 random 20%", **full_metrics(y_te18, y_pred18, clf18.predict_proba(Xte18)[:, 1])})
 
 label_names18 = df18["label_name"].values[idx_te18]
 rows18 = []
@@ -193,10 +198,10 @@ for cat in sorted(set(label_names18)):
         continue
     if cat == "0":
         far = (y_pred18[mask] == 1).mean()
-        rows18.append({"category": "Benign", "n_test": int(n), "DR": None, "FAR": round(far, 4)})
+        rows18.append({"category": "Benign", "n_test": int(n), "DR": None, "FAR": round(far, 4), "n_flagged": int(mask.sum() * far)})
     else:
         dr = (y_pred18[mask] == 1).mean()
-        rows18.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None})
+        rows18.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None, "n_detected": int(round(mask.sum() * dr))})
 
 df18_out = pd.DataFrame(rows18)
 print(df18_out.to_string(index=False), flush=True)
@@ -207,18 +212,19 @@ df18_out.to_csv(TABLES / "perclass_cicids18.csv", index=False)
 print("\n=== NSL-KDD Per-Category (20% hold-out) ===", flush=True)
 rawnsl = load_dataset("NSL-KDD")
 dfnsl  = clean(rawnsl)
-mdensl = compute_mde(clean_for_mde(rawnsl), "NSL-KDD")
-fsetsnsl = build_feature_sets(dfnsl, mdensl)
-Xnsl, ynsl, _ = fsetsnsl["combined"]
-
-X_trnsl, X_tensl, y_trnsl, y_tensl, idx_trnsl, idx_tensl = train_test_split(
-    Xnsl, ynsl, np.arange(len(ynsl)), test_size=0.2, stratify=ynsl,
-    random_state=RANDOM_STATE)
+X_rawnsl = dfnsl.drop(columns=META, errors="ignore").select_dtypes(include=[np.number])
+ynsl = dfnsl["binary_label"].values
+idx_trnsl, idx_tensl = train_test_split(np.arange(len(ynsl)), test_size=0.2, stratify=ynsl,
+                                        random_state=RANDOM_STATE)
+mde_tnsl = MDEFeatures("NSL-KDD", include_raw=True).fit(X_rawnsl.iloc[idx_trnsl])
+X_trnsl, X_tensl = mde_tnsl.transform(X_rawnsl.iloc[idx_trnsl]), mde_tnsl.transform(X_rawnsl.iloc[idx_tensl])
+y_trnsl, y_tensl = ynsl[idx_trnsl], ynsl[idx_tensl]
 
 Xtrnsl, Xtensl = preprocess_fit_transform(X_trnsl, X_tensl)
 clfnsl = make_lgb()
 clfnsl.fit(Xtrnsl, y_trnsl)
 y_prednsl = clfnsl.predict(Xtensl)
+overall_rows.append({"split": "NSL-KDD random 20%", **full_metrics(y_tensl, y_prednsl, clfnsl.predict_proba(Xtensl)[:, 1])})
 
 label_namesnsl = dfnsl["label_name"].values[idx_tensl]
 rows_nsl = []
@@ -230,13 +236,14 @@ for cat in sorted(set(label_namesnsl)):
     is_benign = (dfnsl["binary_label"].values[idx_tensl][mask] == 0).all()
     if is_benign:
         far = (y_prednsl[mask] == 1).mean()
-        rows_nsl.append({"category": cat, "n_test": int(n), "DR": None, "FAR": round(far, 4)})
+        rows_nsl.append({"category": cat, "n_test": int(n), "DR": None, "FAR": round(far, 4), "n_flagged": int(mask.sum() * far)})
     else:
         dr = (y_prednsl[mask] == 1).mean()
-        rows_nsl.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None})
+        rows_nsl.append({"category": cat, "n_test": int(n), "DR": round(dr, 4), "FAR": None, "n_detected": int(round(mask.sum() * dr))})
 
 df_nsl = pd.DataFrame(rows_nsl)
 print(df_nsl.to_string(index=False), flush=True)
 df_nsl.to_csv(TABLES / "perclass_nslkdd.csv", index=False)
+pd.DataFrame(overall_rows).to_csv(TABLES / "perclass_overall.csv", index=False)
 
 print("\n=== Done ===", flush=True)
